@@ -1,6 +1,10 @@
 # rokey_week5_ws
 5주차 프로젝트 
 
+#### 자기의 branch로 바꾸기
+```
+git checkout ~~~
+```
 #### commit 하고 올리는 방법 
 ```
 git add .
