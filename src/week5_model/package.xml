@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>week5_model</name>
+  <version>0.0.0</version>
+  <description>Package for custom TurtleBot3 model with additional box</description>
+  <maintainer email="na06219@naver.com">jaenote</maintainer>
+  <license>Apache License 2.0</license>
+
+  <!-- 실행 시 의존성 -->
+  <exec_depend>turtlebot3_description</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>urdf</exec_depend>
+
+  <!-- Gazebo 시뮬레이션이 필요한 경우 -->
+  <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>gazebo_ros_pkgs</exec_depend>
+
+  <!-- 빌드 시 의존성 -->
+  <build_depend>ament_python</build_depend>
+  <build_depend>ament_cmake</build_depend>
+
+  <!-- 테스트 의존성 -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

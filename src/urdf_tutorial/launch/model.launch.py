@@ -10,7 +10,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration("use_sim_time")
 
     pkg_path = os.path.join(get_package_share_directory("urdf_tutorial"))
-    xacro_file = os.path.join(pkg_path, "urdf", "robot_1.xacro")
+    xacro_file = os.path.join(pkg_path, "urdf", "model.sdf")
     robot_description = xacro.process_file(xacro_file)
     params = {"robot_description": robot_description.toxml(), "use_sim_time": use_sim_time}
 

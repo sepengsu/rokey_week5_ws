@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<robot name="hose_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- TurtleBot3 Waffle xacro 불러오기 -->
+  <xacro:include filename="$(find turtlebot3_description)/urdf/turtlebot3_waffle.urdf.xacro"/>
+</robot>
