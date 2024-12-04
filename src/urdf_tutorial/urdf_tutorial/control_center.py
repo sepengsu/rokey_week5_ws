@@ -118,5 +118,5 @@ class Node:
 if __name__ == "__main__":
     node = Node()
     control_center = FireControlCenter(node)
-    # def __init__(self,node,):
+    
 
