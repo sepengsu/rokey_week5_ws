@@ -10,38 +10,63 @@ from tf2_ros import TransformListener, Buffer
 import sys
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame
-from PyQt5.QtGui import QPixmap, QColor, QImage
+from PyQt5.QtGui import QPixmap, QColor, QImage, QPainter
 from PyQt5.QtCore import Qt, QTimer, QThread
+from geometry_msgs.msg import PoseWithCovarianceStamped
 
-def map_to_pixmap(map_data):
-        """OccupancyGrid 데이터를 QPixmap으로 변환"""
-        width = map_data.info.width
-        height = map_data.info.height
+class SystemNode(Node):
+    def __init__(self):
+        super().__init__('system_node')  # Node 이름 설정
 
-        # OccupancyGrid 데이터를 numpy 배열로 변환
-        data = np.array(map_data.data, dtype=np.int8).reshape((height, width))
+        # ROS2 토픽 구독
+        self.map_subscription = self.create_subscription(OccupancyGrid,'/map',
+            self.map_callback,10)
+        self.tb1_subscription = self.create_subscription(PoseWithCovarianceStamped,'/tb1/amcl_pose',
+            self.tb1_callback, 10)
+        self.tb2_subscription = self.create_subscription(PoseWithCovarianceStamped,'/tb2/amcl_pose',
+            self.tb2_callback, 10)
 
-        # 값의 범위를 0-255로 정규화
-        normalized_data = np.zeros_like(data, dtype=np.uint8)
-        normalized_data[data == -1] = 128  # unknown은 중간값(회색)
-        normalized_data[data >= 0] = (100 - data[data >= 0]) * 2.55  # 0: 흰색, 100: 검은색
+        # 데이터 저장 및 락 설정
+        self.map_data = None
+        self.tb1_position = None
+        self.tb2_position = None
+        self.lock = threading.Lock()
 
-        # numpy 배열을 QImage로 변환
-        image = QImage(normalized_data.data, width, height, QImage.Format_Grayscale8)
+    def map_callback(self, msg):
+        """맵 데이터를 저장"""
+        with self.lock:
+            self.map_data = msg
+            self.get_logger().info("Map data updated.")
 
-        # QImage를 QPixmap으로 변환
-        return QPixmap.fromImage(image)
+    def get_map(self):
+        """맵 데이터를 반환 (스레드 안전)"""
+        with self.lock:
+            return self.map_data
+
+    def tb1_callback(self, msg):
+        """tb1의 위치를 저장"""
+        with self.lock:
+            self.tb1_position = msg.pose.pose.position
+        self.get_logger().info(f"tb1 위치: x={self.tb1_position.x:.2f}, y={self.tb1_position.y:.2f}")
+
+    def tb2_callback(self, msg):
+        """tb2의 위치를 저장"""
+        with self.lock:
+            self.tb2_position = msg.pose.pose.position
+        self.get_logger().info(f"tb2 위치: x={self.tb2_position.x:.2f}, y={self.tb2_position.y:.2f}")
+
+    def get_robot_positions(self):
+        """로봇 위치를 반환 (스레드 안전)"""
+        with self.lock:
+            return self.tb1_position, self.tb2_position
 
 class ControlTowerGUI(QWidget):
-    def __init__(self,node: SystemNode):
+    def __init__(self, node):
         super().__init__()
         self.node = node
         self.setWindowTitle("화재 관제 시스템")
         self.setGeometry(100, 100, 1000, 800)
         self.setStyleSheet("background-color: white;")
-        
-        # 화재 경고 상태를 추적하는 변수
-        self.fire_alarm_active = False
 
         # 메인 레이아웃
         main_layout = QVBoxLayout()
@@ -61,166 +86,119 @@ class ControlTowerGUI(QWidget):
         main_layout.addLayout(bottom_layout)
         self.setLayout(main_layout)
 
-        # 실시간 업데이트를 위한 쓰레드 실행
-        self.start_threads()
+        # QTimer로 주기적으로 업데이트
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_gui)  # 주기적으로 업데이트 함수 호출
+        self.timer.start(100)  # 100ms마다 호출
 
     def create_map_section(self, layout):
         """지도 표시 부분 생성"""
-        map_frame = QFrame()
-        map_frame.setStyleSheet("background-color: #4e99b0; border-radius: 10px;")
-        map_layout = QVBoxLayout()
-
-        # 지도 이미지
-        temp_image = QPixmap("map.png")
-        map_label = QLabel()
-        map_label.setPixmap(temp_image.scaled(300, 200, Qt.KeepAspectRatio))
-        map_label.setAlignment(Qt.AlignCenter)
-        map_layout.addWidget(map_label)
-
-        map_frame.setLayout(map_layout)
-        layout.addWidget(map_frame)
-
-    def update_map(self):
-        """ROS2 노드에서 맵 데이터를 가져와 GUI에 표시"""
-        
-
-        if map_data is not None:
-            # OccupancyGrid 데이터를 QPixmap으로 변환
-            pixmap = self.map_to_pixmap(map_data)
-            self.map_label.setPixmap(pixmap)
+        self.map_label = QLabel("지도 로딩 중...")
+        self.map_label.setAlignment(Qt.AlignCenter)
+        self.map_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
+        layout.addWidget(self.map_label)
 
     def create_fire_status_section(self, layout):
         """실시간 화재 상태 표시 부분 생성"""
-        fire_status_frame = QFrame()
-        fire_status_frame.setStyleSheet("background-color: #5cb85c; border-radius: 10px;")
-        fire_status_layout = QVBoxLayout()
-
         self.fire_status_label = QLabel("화재 상태: 안전")
-        self.fire_status_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
         self.fire_status_label.setAlignment(Qt.AlignCenter)
-        fire_status_layout.addWidget(self.fire_status_label)
-
-        fire_status_frame.setLayout(fire_status_layout)
-        layout.addWidget(fire_status_frame)
+        self.fire_status_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
+        layout.addWidget(self.fire_status_label)
 
     def create_monitoring_section(self, layout):
         """화면 모니터링 부분 생성"""
-        monitoring_frame = QFrame()
-        monitoring_frame.setStyleSheet("background-color: #d9534f; border-radius: 10px;")
-        monitoring_layout = QVBoxLayout()
-
         self.monitoring_label = QLabel("모니터링 화면")
-        self.monitoring_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
         self.monitoring_label.setAlignment(Qt.AlignCenter)
-        monitoring_layout.addWidget(self.monitoring_label)
-
-        monitoring_frame.setLayout(monitoring_layout)
-        layout.addWidget(monitoring_frame)
+        self.monitoring_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
+        layout.addWidget(self.monitoring_label)
 
     def create_robot_monitoring_section(self, layout):
         """로봇 실시간 모니터링 표시 부분 생성"""
-        robot_monitoring_frame = QFrame()
-        robot_monitoring_frame.setStyleSheet("background-color: #f0ad4e; border-radius: 10px;")
-        robot_monitoring_layout = QVBoxLayout()
-
         self.robot_monitoring_label = QLabel("로봇 상태: 대기 중")
-        self.robot_monitoring_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
         self.robot_monitoring_label.setAlignment(Qt.AlignCenter)
-        robot_monitoring_layout.addWidget(self.robot_monitoring_label)
+        self.robot_monitoring_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
+        layout.addWidget(self.robot_monitoring_label)
 
-        robot_monitoring_frame.setLayout(robot_monitoring_layout)
-        layout.addWidget(robot_monitoring_frame)
+    def update_gui(self):
+        """GUI 업데이트 함수"""
+        # 맵과 로봇 위치를 가져와 업데이트
+        map_data = self.node.map_data  # SystemNode의 맵 데이터 가져오기
+        tb1_position, tb2_position = self.node.get_robot_positions()  # 로봇 위치 가져오기
 
-    def update_fire_status(self):
-        """실시간 화재 상태를 업데이트하는 함수"""
-        while True:
-            self.fire_status_label.setText("화재 발생!")
-            self.fire_status_label.setStyleSheet("font-size: 16px; background-color: #ffcccc; padding: 20px;")
-            self.fire_alarm_active = True  # 화재 경고 활성화
-            time.sleep(5)
+        # 맵 업데이트
+        self.update_display(map_data, tb1_position, tb2_position)
 
-            self.fire_status_label.setText("화재 상태: 안전")
-            self.fire_status_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
-            self.fire_alarm_active = False
-            time.sleep(5)
+    def update_display(self, map_data, tb1_position, tb2_position):
+        """맵과 로봇 위치 업데이트"""
+        if map_data is not None:
+            pixmap = self.create_map_pixmap(map_data, tb1_position, tb2_position)
+            self.map_label.setPixmap(pixmap)
+        else:
+            print("No map data")
 
-    def update_monitoring(self):
-        """실시간 화면 모니터링을 업데이트하는 함수"""
-        while True:
-            self.monitoring_label.setText("모니터링 중...")
-            self.monitoring_label.setStyleSheet("font-size: 16px; background-color: #ffcc99; padding: 20px;")
-            time.sleep(2)
-
-    def update_robot_monitoring(self):
-        """로봇 실시간 모니터링을 업데이트하는 함수"""
-        while True:
-            self.robot_monitoring_label.setText("로봇 상태: 작동 중")
-            self.robot_monitoring_label.setStyleSheet("font-size: 16px; background-color: #e5f7f7; padding: 20px;")
-            time.sleep(3)
-
-    def blink_fire_monitoring(self):
-        """화재 모니터링을 빨간 불빛처럼 깜박이게 하는 함수"""
-        while True:
-            if self.fire_alarm_active:
-                self.monitoring_label.setStyleSheet("font-size: 16px; background-color: #ff3333; padding: 20px;")
-                time.sleep(0.5)
-                self.monitoring_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
-                time.sleep(0.5)
-            else:
-                time.sleep(1)
-
-    def start_threads(self):
-        """실시간 화재 상태와 모니터링을 위한 쓰레드 실행"""
-        fire_thread = threading.Thread(target=self.update_fire_status, daemon=True)
-        monitoring_thread = threading.Thread(target=self.update_monitoring, daemon=True)
-        robot_monitoring_thread = threading.Thread(target=self.update_robot_monitoring, daemon=True)
-        blink_thread = threading.Thread(target=self.blink_fire_monitoring, daemon=True)
-
-        fire_thread.start()
-        monitoring_thread.start()
-        robot_monitoring_thread.start()
-        blink_thread.start()
-
-class SystemNode(Node):
-    def __init__(self):
-        rclpy.init()
-        self.map_subscription = self.create_subscription(
-            OccupancyGrid,
-            '/map',
-            self.map_callback,
-            10
-        )
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
-
-        self.map_data = None
-        self.map_data_lock = threading.Lock()
-
-        # Timer for periodic TF requests
-        self.timer = self.create_timer(0.1, self.update_robot_position)  # 0.1초 간격
-        self.robot_position = None  # 로봇 위치 저장
+    def create_map_pixmap(self, map_data, tb1_position, tb2_position):
         
-    def map_callback(self, msg):
-        """맵 데이터를 저장"""
-        with self.map_data_lock:
-            self.map_data = msg
+        """맵과 로봇 위치를 결합하여 QPixmap 생성"""
+        width = map_data.info.width
+        height = map_data.info.height
+        resolution = map_data.info.resolution
+        origin = map_data.info.origin.position
 
-    def get_map(self):
-        """맵 데이터를 안전하게 반환"""
-        with self.map_data_lock:
-            return self.map_data
+        # OccupancyGrid 데이터를 numpy 배열로 변환
+        grid_data = np.array(map_data.data, dtype=np.int8).reshape((height, width))
+        width = map_data.info.width
+        height = map_data.info.height
+        grid_data = np.array(map_data.data, dtype=np.int8).reshape((height, width))
 
-    def get_robot_position(self):
-        try:
-            transform = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
-            self.robot_position = (
-                transform.transform.translation.x,
-                transform.transform.translation.y
-            )
-            self.get_logger().info(f"Robot Position: {self.robot_position}")
-        except Exception as e:
-            self.get_logger().info(f"Could not get transform: {e}")
+        # 맵 데이터를 이미지로 변환
+        normalized_data = np.zeros_like(grid_data, dtype=np.uint8)
+        normalized_data[grid_data == -1] = 128  # Unknown: 회색
+        normalized_data[grid_data == 0] = 255  # Free: 흰색
+        normalized_data[grid_data > 0] = 0     # Occupied: 검은색
 
+        image = QImage(normalized_data.data, width, height, QImage.Format_Grayscale8)
+        # numpy 배열을 QPixmap으로 변환
+        pixmap = QPixmap.fromImage(image)
+
+        # 로봇 위치 표시
+        painter = QPainter(pixmap)
+        painter.setBrush(QColor(255, 0, 0))  # 빨간색
+
+        if tb1_position:
+            map_x = int((tb1_position.x - origin.x) / resolution)
+            map_y = int((tb1_position.y - origin.y) / resolution)
+            painter.drawEllipse(map_x - 5, map_y - 5, 10, 10)
+
+        if tb2_position:
+            map_x = int((tb2_position.x - origin.x) / resolution)
+            map_y = int((tb2_position.y - origin.y) / resolution)
+            painter.setBrush(QColor(0, 0, 255))  # 파란색
+            painter.drawEllipse(map_x - 5, map_y - 5, 10, 10)
+
+        painter.end()
+        return pixmap
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    # ROS2 노드와 PyQt5 GUI 생성
+    node = SystemNode()
+    app = QApplication(sys.argv)
+    gui = ControlTowerGUI(node)
+
+    # ROS2 스핀을 별도의 쓰레드에서 실행
+    def ros_spin():
+        rclpy.spin(node)
+
+    ros_thread = threading.Thread(target=ros_spin, daemon=True)
+    ros_thread.start()
+
+    # PyQt5 GUI 실행
+    gui.show()
+    sys.exit(app.exec_())
+
+    # ROS2 종료
+    rclpy.shutdown()
 
 if __name__ == "__main__":
-    
+    main()

@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'system_gui = week5_map.system_gui:main',
         ],
     },
 )
