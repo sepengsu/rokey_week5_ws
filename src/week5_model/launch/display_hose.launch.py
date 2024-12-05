@@ -18,6 +18,9 @@ def generate_launch_description():
     robot_description_config = xacro.process_file(xacro_file)
     robot_description = robot_description_config.toxml()
 
+    # RViz2 설정 파일 경로
+    rviz_config_file = os.path.join(pkg_path, "config", "hose_robot.rviz")
+
     # 파라미터 정의
     params = {"robot_description": robot_description, "use_sim_time": use_sim_time}
 
@@ -36,5 +39,13 @@ def generate_launch_description():
                 output="screen",
                 parameters=[params],
             ),
-        ]
+            # RViz2 노드
+            Node(
+                package="rviz2",
+                executable="rviz2",
+                name="rviz2",
+                output="screen",
+                arguments=["-d", rviz_config_file],  # RViz 설정 파일 경로
+            ),
+        ],
     )

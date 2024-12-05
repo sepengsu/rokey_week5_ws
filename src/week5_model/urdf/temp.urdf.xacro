@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="hose_plate_waffle_combined">
   <!-- TurtleBot3 Waffle 로드 -->
-  <xacro:include filename="$./turtlebot3_waffle_pi.urdf.xacro"/>
+  <xacro:include filename="$(find turtlebot3_description)/urdf/turtlebot3_waffle_pi.urdf.xacro"/>
 
   <!-- hose_plate 정의 -->
   <material name="hose_plate_light_black">
