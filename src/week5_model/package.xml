@@ -18,7 +18,8 @@
   <!-- Gazebo 시뮬레이션이 필요한 경우 -->
   <exec_depend>gazebo_ros</exec_depend>
   <exec_depend>gazebo_ros_pkgs</exec_depend>
-
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
   <!-- 빌드 시 의존성 -->
   <build_depend>ament_python</build_depend>
   <build_depend>ament_cmake</build_depend>

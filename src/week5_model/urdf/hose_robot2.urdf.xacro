@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="hose_plate_waffle_combined">
   <!-- TurtleBot3 Waffle 로드 -->
-  <xacro:include filename="$./turtlebot3_waffle_pi.urdf.xacro"/>
+  <xacro:include filename="./turtlebot3_waffle_pi.urdf.xacro"/>
 
   <!-- hose_plate 정의 -->
   <material name="hose_plate_light_black">
@@ -31,12 +31,12 @@
     </collision>
   </link>
 
-  <joint name="top_joint" type="fixed">
+  <joint name="top_joint" type="prismatic">
     <parent link="hose_plate_base_link"/>
     <child link="top_link"/>
-    <origin rpy="0 0 0" xyz="0 0.1 0.02"/>
-    <axis xyz="0 0 1"/>
-    <!-- <limit lower="0" upper="0.02" effort="1000" velocity="0.5"/> -->
+    <origin rpy="0 0 0" xyz="0 -0.1 0.02"/>
+    <axis xyz="0 0 1"/> <!-- z축 방향으로 선형 이동 -->
+    <limit lower="0.0" upper="0.07" effort="50.0" velocity="0.035"/>
   </joint>
 
   <link name="top_link">
@@ -54,4 +54,16 @@
       </geometry>
     </collision>
   </link>
+    <!-- Transmission 설정 -->
+  <transmission name="top_joint_trans">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="top_joint">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="motor_top">
+      <hardwareInterface>EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
 </robot>
