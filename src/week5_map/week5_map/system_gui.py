@@ -18,6 +18,8 @@ from PyQt5.QtCore import QMetaObject, Qt
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 from PIL import Image as PILImage
+from PyQt5.QtGui import QTransform
+
 
 qos_profile = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,  # 신뢰성 설정
@@ -264,7 +266,11 @@ class ControlTowerGUI(QWidget):
                 painter.setBrush(QColor(0, 255, 0))
                 painter.drawEllipse(map_x_scaled - 5, map_y_scaled - 5, 10, 10)
             painter.end()
-            return pixmap
+            transform = QTransform().rotate(90)  # 원하는 각도
+            rotated_pixmap = pixmap.transformed(transform, Qt.SmoothTransformation)
+
+            # 회전된 Pixmap 반환
+            return rotated_pixmap
 
         except Exception as e:
             self.node.get_logger().error(f"Error in create_map_pixmap: {e}")
