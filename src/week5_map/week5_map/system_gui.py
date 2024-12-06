@@ -169,7 +169,6 @@ class ControlTowerGUI(QWidget):
                     self.monitoring_label.setPixmap(pixmap)
                     self.monitoring_label.setScaledContents(True)  # 이미지를 QLabel 크기에 맞게 조정
                     self.monitoring_label.setFixedSize(width, height)
-                    print("tb1_image 업데이트")
                 else:
                     self.monitoring_label.setText("올바르지 않은 이미지 형식")
             except Exception as e:
@@ -197,34 +196,82 @@ class ControlTowerGUI(QWidget):
             resolution = map_data.info.resolution
             origin = map_data.info.origin.position
 
-            grid_data = np.array(map_data.data, dtype=np.int8).reshape((height, width))
+            # 맵 데이터 크기 확인
+            if len(map_data.data) != width * height:
+                self.node.get_logger().error(
+                    f"Map data size mismatch! Expected {width * height}, but got {len(map_data.data)}"
+                )
+                return None
+
+            # 맵 데이터를 그리드로 변환
+            grid_data = np.array(map_data.data, dtype=np.int8).reshape(height, width, order='C')
             normalized_data = np.zeros_like(grid_data, dtype=np.uint8)
             normalized_data[grid_data == -1] = 128  # Unknown: 회색
             normalized_data[grid_data == 0] = 255  # Free: 흰색
             normalized_data[grid_data > 0] = 0     # Occupied: 검은색
 
-            image = QImage(normalized_data.data, width, height, QImage.Format_Grayscale8)
+            # QImage 생성
+            image = QImage(normalized_data.tobytes(), width, height, width, QImage.Format_Grayscale8)
             pixmap = QPixmap.fromImage(image)
 
+            # Pixmap 리사이즈
+            target_width = 800
+            target_height = 600
+            pixmap = pixmap.scaled(target_width, target_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+            # 스케일링 계산
+            actual_width = pixmap.width()
+            actual_height = pixmap.height()
+
+            # 스케일링 비율 계산
+            scale_x = actual_width / width
+            scale_y = actual_height / height
+
+
+            # 로봇 위치 그리기
             painter = QPainter(pixmap)
-            painter.setBrush(QColor(255, 0, 0))  # 빨간색
 
+            # tb1 위치
             if tb1_position:
-                map_x = int((tb1_position.x - origin.x) / resolution)
-                map_y = int((tb1_position.y - origin.y) / resolution)
-                painter.drawEllipse(map_x - 5, map_y - 5, 10, 10)
+                map_x = (tb1_position.x - origin.x) / resolution
+                map_y = (tb1_position.y - origin.y) / resolution
 
+                # Y축 반전 (픽셀 좌표 기준)
+                map_y = height - map_y
+
+                # 화면 스케일링
+                map_x_scaled = int(map_x * scale_x)
+                map_y_scaled = int(map_y * scale_y)
+
+                # 로봇 위치를 화면에 그리기
+                painter.setBrush(QColor(255, 0, 0))
+                painter.drawEllipse(map_x_scaled - 5, map_y_scaled - 5, 10, 10)
+
+
+            # tb2 위치
             if tb2_position:
-                map_x = int((tb2_position.x - origin.x) / resolution)
-                map_y = int((tb2_position.y - origin.y) / resolution)
-                painter.setBrush(QColor(0, 0, 255))  # 파란색
-                painter.drawEllipse(map_x - 5, map_y - 5, 10, 10)
+                map_x = (tb2_position.x - origin.x) / resolution
+                map_y = (tb2_position.y - origin.y) / resolution
 
+                # Y축 반전 (픽셀 좌표 기준)
+                map_y = height - map_y
+
+                # 화면 스케일링
+                map_x_scaled = int(map_x * scale_x)
+                map_y_scaled = int(map_y * scale_y)
+
+                # 로봇 위치를 화면에 그리기
+                painter.setBrush(QColor(0, 255, 0))
+                painter.drawEllipse(map_x_scaled - 5, map_y_scaled - 5, 10, 10)
             painter.end()
             return pixmap
+
         except Exception as e:
-            self.node.get_logger().error(f"맵 데이터 처리 중 오류: {e}")
+            self.node.get_logger().error(f"Error in create_map_pixmap: {e}")
             return None
+
+
+
 
 
 def main(args=None):
