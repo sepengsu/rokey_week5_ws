@@ -1,4 +1,3 @@
-
 import threading, time, sys
 import rclpy
 from rclpy.node import Node
@@ -6,7 +5,6 @@ from std_msgs.msg import String
 from nav_msgs.msg import OccupancyGrid
 from tf2_ros import TransformListener, Buffer
 import cv2
-
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame
 from PyQt5.QtGui import QPixmap, QColor, QImage, QPainter
@@ -21,6 +19,7 @@ from PIL import Image as PILImage
 from PyQt5.QtGui import QTransform
 
 
+# QoS 설정
 qos_profile = QoSProfile(
     reliability=QoSReliabilityPolicy.RELIABLE,  # 신뢰성 설정
     durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,  # 지속성 설정
@@ -31,6 +30,7 @@ cam_qos_profile = QoSProfile(
     durability=QoSDurabilityPolicy.VOLATILE,   # 지속성 설정 (과거 데이터 저장 안 함)
     depth=10                                   # 기본 히스토리 버퍼 크기
 )
+
 class SystemNode(Node):
     def __init__(self):
         super().__init__('system_node')  # Node 이름 설정
@@ -67,27 +67,22 @@ class SystemNode(Node):
         """tb1의 위치를 저장"""
         with self.lock:
             self.tb1_position = msg.pose.pose.position
-        # self.get_logger().info(f"tb1 위치: x={self.tb1_position.x:.2f}, y={self.tb1_position.y:.2f}")
 
     def tb2_callback(self, msg):
         """tb2의 위치를 저장"""
         with self.lock:
             self.tb2_position = msg.pose.pose.position
-        # self.get_logger().info(f"tb2 위치: x={self.tb2_position.x:.2f}, y={self.tb2_position.y:.2f}")
     
     def tb1_camera_callback(self, msg):
+        """tb1 카메라 데이터 처리"""
         with self.lock:
             try:
                 bridge = CvBridge()
                 cv_image = bridge.imgmsg_to_cv2(msg, "bgr8")  # OpenCV 이미지로 변환
-                # 처리할 내용 추가 (예: 저장, 디스플레이 등)
-                # self.get_logger().info("tb1 카메라 데이터 수신")
                 cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB, cv_image)
                 self.tb1_image = cv_image
             except Exception as e:
                 self.get_logger().error(f"카메라 데이터 변환 실패: {e}")
-
-
 
 class ControlTowerGUI(QWidget):
     def __init__(self, node: SystemNode):
@@ -130,7 +125,6 @@ class ControlTowerGUI(QWidget):
             color: #ffffff; /* 흰색 텍스트 */
             padding: 20px; 
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 123, 255, 0.4); /* 그림자 효과 */
         """)
         layout.addWidget(self.map_label)
 
@@ -144,7 +138,6 @@ class ControlTowerGUI(QWidget):
             color: #ffffff; /* 흰색 텍스트 */
             padding: 20px; 
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.4); /* 그림자 효과 */
         """)
         layout.addWidget(self.fire_status_label)
 
@@ -158,7 +151,6 @@ class ControlTowerGUI(QWidget):
             color: #ffffff; /* 흰색 텍스트 */
             padding: 20px; 
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4); /* 그림자 효과 */
         """)
         layout.addWidget(self.monitoring_label)
 
@@ -172,7 +164,6 @@ class ControlTowerGUI(QWidget):
             color: #333333; /* 어두운 텍스트 */
             padding: 20px; 
             border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(255, 193, 7, 0.4); /* 그림자 효과 */
         """)
         layout.addWidget(self.robot_monitoring_label)
 

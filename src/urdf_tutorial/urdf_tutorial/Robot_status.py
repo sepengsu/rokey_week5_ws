@@ -1,6 +1,6 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Twist, PoseStamped, PoseWithCovarianceStamped
+from geometry_msgs.msg import Twist, PoseStamped
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -25,7 +25,7 @@ class FireSuppressionRobot(Node):
 
         # 순찰 및 복귀를 위한 위치 목록
         self.patrol_positions = [
-            [-1.198, -0.069, 0.0],  # 순찰 위치 1
+            [-0.198, -5.069, 0.0],  # 순찰 위치 1
             [-7.681, -5.314, 0.0],  # 순찰 위치 2
             [-8.152, 0.763, 0.0],   # 순찰 위치 3
             [-8.18, 7.49, 0.0],     # 순찰 위치 4
@@ -35,7 +35,7 @@ class FireSuppressionRobot(Node):
             [-7.72, -1.21, 0.001],  # 순찰 위치 8
             [-0.415, -0.458, 0.001] # 순찰 위치 9
         ]
-        self.initial_position = [0]  # 초기 위치 (로봇이 시작하는 위치)
+        self.initial_position = [-0.0534, -0.0035, -0.00143]  # 초기 위치 (로봇이 시작하는 위치)
         self.current_position_index = 0  # 순찰 위치의 인덱스 (초기값은 첫 번째 위치)
         self.fire_detected = False  # 화재 감지 여부를 추적하는 플래그
         self.is_returning = False  # 복귀 여부를 추적하는 플래그
@@ -51,29 +51,7 @@ class FireSuppressionRobot(Node):
             self.get_logger().info('NavigateToPose 액션 서버 대기 중...')
 
         # 타이머를 사용하여 순찰을 시작
-        self.patrol()  # 5초마다 호출되는 타이머 설정
-
-        # PoseWithCovarianceStamped 퍼블리셔
-        self.pose_estimate_pub = self.create_publisher(PoseWithCovarianceStamped, '/amcl_pose', 10)
-
-        # 추가: 초기 2D Pose Estimate 퍼블리시 (로봇이 시작할 때)
-        self.publish_initial_pose()
-
-    def publish_initial_pose(self):
-        """로봇의 초기 위치를 퍼블리시하는 함수 (AMCL 초기화)."""
-        initial_pose = PoseWithCovarianceStamped()
-        initial_pose.header.frame_id = "map"
-        initial_pose.header.stamp = self.get_clock().now().to_msg()
-
-        initial_pose.pose.pose.position.x = 0.0
-        initial_pose.pose.pose.position.y = 0.0
-        initial_pose.pose.pose.orientation.w = 1.0  # 회전 없음
-
-        # covariance 값 설정 (로봇의 초기 정확도를 0.1로 설정)
-        initial_pose.pose.covariance = [0.1] * 36
-
-        self.pose_estimate_pub.publish(initial_pose)
-        self.get_logger().info("초기 2D Pose Estimate 퍼블리시됨.")
+        self.timer = self.create_timer(5.0, self.patrol)  # 5초마다 호출되는 타이머 설정
 
     def camera_callback(self, msg):
         """카메라 이미지를 받아서 화재를 감지하는 콜백 함수."""
@@ -118,13 +96,7 @@ class FireSuppressionRobot(Node):
 
         goal_msg.pose.position.x = position[0]
         goal_msg.pose.position.y = position[1]
-        goal_msg.pose.position.z = 0.0  # Z 축을 0으로 설정 (평면 이동)
-        
-        # 로봇의 회전 각도는 0으로 설정 (회전 없이 이동)
-        goal_msg.pose.orientation.x = 0.0
-        goal_msg.pose.orientation.y = 0.0
-        goal_msg.pose.orientation.z = 0.0
-        goal_msg.pose.orientation.w = 1.0  # 회전하지 않음
+        goal_msg.pose.orientation.w = 1.0  # 회전 없이 이동
 
         self.get_logger().info(f"위치로 이동 중: {position}")
 
@@ -134,33 +106,7 @@ class FireSuppressionRobot(Node):
 
         # 액션 호출
         future = self.navigate_to_pose_client.send_goal_async(action_goal)
-        
-        # 결과를 기다림 (로봇이 목표 위치에 도달할 때까지)
-        result = future.result()
-        if result and result.status == 3:  # 성공적으로 도달
-            self.get_logger().info(f"목표 위치 도달: {position}")
-            self.update_pose_estimate(position)  # 위치 갱신
-            return True  # 목표 위치 도달 성공
-        else:
-            self.get_logger().error(f"목표 위치 도달 실패: {position}")
-            return False  # 목표 위치 도달 실패
-
-    def update_pose_estimate(self, position):
-        """로봇의 2D Pose Estimate를 업데이트하는 함수."""
-        pose_msg = PoseWithCovarianceStamped()
-        pose_msg.header.frame_id = "map"
-        pose_msg.header.stamp = self.get_clock().now().to_msg()
-
-        pose_msg.pose.pose.position.x = position[0]
-        pose_msg.pose.pose.position.y = position[1]
-        pose_msg.pose.pose.orientation.w = 1.0  # 방향을 0으로 유지 (회전 없음)
-
-        # covariance 값을 설정 (여기서는 기본값을 사용)
-        pose_msg.pose.covariance = [0.1] * 36  # 임시로 0.1의 값 설정
-
-        # 퍼블리시
-        self.pose_estimate_pub.publish(pose_msg)
-        self.get_logger().info(f"2D Pose Estimate 업데이트: {position}")
+        return future
 
     def stop_robot(self):
         """로봇의 이동을 멈추는 함수."""
@@ -185,28 +131,15 @@ class FireSuppressionRobot(Node):
 
     def patrol(self):
         """사각형 경로로 순찰을 수행하는 함수."""
-        # 현재 순찰 위치로 이동
-        current_position = self.patrol_positions[self.current_position_index]
-        self.get_logger().info(f"순찰 위치: {current_position}")
-        # 목표 위치로 이동
-        success = self.move_to_position(current_position)  # 목표 위치에 도달할 때까지 대기
-        while True:
-            if self.fire_detected:
-                return  # 화재 감지 시 순찰을 중단
-            
-            if success:
-                # 목표 위치에 도달했다면 순찰 위치 인덱스를 증가시키고, 마지막 위치를 넘지 않도록 처리
-                self.current_position_index += 1
-                # 현재 순찰 위치로 이동
-                current_position = self.patrol_positions[self.current_position_index]
-                self.get_logger().info(f"순찰 위치: {current_position}")
-                # 목표 위치로 이동
-                success = self.move_to_position(current_position)  # 목표 위치에 도달할 때까지 대기
-            else:
-                # self.get_logger().info(f"순찰 위치 {current_position}로의 이동중...")
-                pass
+        if self.fire_detected:
+            return  # 화재 감지 시 순찰을 중단
 
+        # 순찰 위치로 이동
+        self.get_logger().info(f"순찰 위치: {self.patrol_positions[self.current_position_index]}")
+        self.move_to_position(self.patrol_positions[self.current_position_index])
 
+        # 순찰 위치 인덱스를 업데이트
+        self.current_position_index = (self.current_position_index + 1) % len(self.patrol_positions)
 
 def main():
     rclpy.init()
