@@ -54,6 +54,8 @@ setup(
         'console_scripts': [
             'system_gui = week5_map.system_gui:main',
             'map_gui = week5_map.new:main',
+            'temp = week5_map.temp:main',
+            
         ],
     },
 )
