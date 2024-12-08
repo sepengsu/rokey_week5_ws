@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts':[
             'like = urdf_tutorial.Robot_status:main',
+            'gui = urdf_tutorial.system_gui:main',
         ],
     },
 )
