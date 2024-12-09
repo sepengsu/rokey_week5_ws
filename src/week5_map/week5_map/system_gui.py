@@ -95,7 +95,7 @@ class ControlTowerGUI(QWidget):
         self.node = node
         self.setWindowTitle("화재 관제 시스템")
         self.setGeometry(100, 100, 1000, 800)
-        self.setStyleSheet("background-color: white;")
+        self.setStyleSheet("background-color: #e0e0e0;")  # 전체 배경 색상
 
         # 메인 레이아웃
         main_layout = QVBoxLayout()
@@ -118,7 +118,7 @@ class ControlTowerGUI(QWidget):
         # QTimer로 주기적으로 업데이트
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_gui)  # 주기적으로 업데이트 함수 호출
-        self.timer.start(100)  # 100ms마다 호출
+        self.timer.start(10)  # 100ms마다 호출
 
     def create_map_section(self, layout):
         """지도 표시 부분 생성"""
@@ -131,7 +131,13 @@ class ControlTowerGUI(QWidget):
         """실시간 화재 상태 표시 부분 생성"""
         self.fire_status_label = QLabel("화재 상태: 안전")
         self.fire_status_label.setAlignment(Qt.AlignCenter)
-        self.fire_status_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
+        self.fire_status_label.setStyleSheet("""
+            font-size: 18px; 
+            background-color: #dc3545; /* 빨간색 배경 */
+            color: #ffffff; /* 흰색 텍스트 */
+            padding: 20px; 
+            border-radius: 10px;
+        """)
         layout.addWidget(self.fire_status_label)
 
     def create_monitoring_section(self, layout):
@@ -139,6 +145,13 @@ class ControlTowerGUI(QWidget):
         self.monitoring_label = QLabel("모니터링 화면")
         self.monitoring_label.setAlignment(Qt.AlignCenter)
         self.monitoring_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
+        self.monitoring_label.setStyleSheet("""
+            font-size: 18px; 
+            background-color: #28a745; /* 초록색 배경 */
+            color: #ffffff; /* 흰색 텍스트 */
+            padding: 20px; 
+            border-radius: 10px;
+        """)
         layout.addWidget(self.monitoring_label)
 
     def create_robot_monitoring_section(self, layout):
@@ -146,6 +159,13 @@ class ControlTowerGUI(QWidget):
         self.robot_monitoring_label = QLabel("로봇 상태: 대기 중")
         self.robot_monitoring_label.setAlignment(Qt.AlignCenter)
         self.robot_monitoring_label.setStyleSheet("font-size: 16px; background-color: white; padding: 20px;")
+        self.robot_monitoring_label.setStyleSheet("""
+            font-size: 18px; 
+            background-color: #ffc107; /* 노란색 배경 */
+            color: #333333; /* 어두운 텍스트 */
+            padding: 20px; 
+            border-radius: 10px;
+        """)
         layout.addWidget(self.robot_monitoring_label)
 
 
@@ -215,6 +235,12 @@ class ControlTowerGUI(QWidget):
             # QImage 생성
             image = QImage(normalized_data.tobytes(), width, height, width, QImage.Format_Grayscale8)
             pixmap = QPixmap.fromImage(image)
+            # 좌우 뒤집기 위한 QTransform 생성
+            transform = QTransform().scale(1, -1)
+
+            # Pixmap에 변환 적용
+            pixmap = pixmap.transformed(transform, Qt.SmoothTransformation)
+
 
             # Pixmap 리사이즈
             target_width = 800
