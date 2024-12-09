@@ -12,7 +12,7 @@ def generate_launch_description():
 
     # 패키지 경로와 Xacro 파일 경로
     pkg_path = os.path.join(get_package_share_directory("week5_model"))
-    xacro_file = os.path.join(pkg_path, "urdf", "hose_robot2.urdf.xacro")
+    xacro_file = os.path.join(pkg_path, "urdf", "hose_robot.urdf.xacro")
     
     # Xacro 파일 처리 및 로봇 설명 생성
     robot_description_config = xacro.process_file(xacro_file)

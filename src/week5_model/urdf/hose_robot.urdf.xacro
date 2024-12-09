@@ -54,7 +54,8 @@
       </geometry>
     </collision>
   </link>
-    <!-- Transmission 설정 -->
+
+    <!-- Transmission 설정
   <transmission name="top_joint_trans">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="top_joint">
@@ -64,6 +65,6 @@
       <hardwareInterface>EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
-  </transmission>
+  </transmission> -->
 
 </robot>
