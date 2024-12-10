@@ -1,38 +1,30 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-import time
 
 class JointStatePublisher(Node):
     def __init__(self):
         super().__init__('joint_state_publisher')
         self.publisher = self.create_publisher(JointState, '/joint_states', 10)
-        self.timer = self.create_timer(0.1, self.publish_joint_state)
 
-        # 초기 상태
-        self.current_position = 0.0
-        self.velocity = 0.01  # 조인트 이동 속도
-        self.direction = 1
+        # Timer를 설정해 주기적으로 퍼블리시
+        self.publish_joint_state()
 
     def publish_joint_state(self):
-        msg = JointState()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = ['top_joint']
-        self.current_position += self.velocity * self.direction
+        joint_state_msg = JointState()
 
-        # 제한 범위 설정
-        if self.current_position >= 0.07:
-            self.direction = -1
-        elif self.current_position <= 0.0:
-            self.direction = 1
-
-        msg.position = [self.current_position]
-        self.publisher.publish(msg)
-        self.get_logger().info(f'Published joint position: {self.current_position:.3f}')
+        # 메시지 초기화
+        joint_state_msg.header.stamp = self.get_clock().now().to_msg()
+        joint_state_msg.name = ["top_link", "wheel_left_link", "wheel_right_link"]
+        joint_state_msg.position = [0.0, 0.0, 0.0]  # 모든 조인트의 초기값을 0으로 설정
+        # 퍼블리시
+        self.publisher.publish(joint_state_msg)
+        self.get_logger().info(f"Published: {joint_state_msg}")
 
 def main(args=None):
     rclpy.init(args=args)
     node = JointStatePublisher()
+
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

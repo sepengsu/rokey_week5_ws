@@ -19,6 +19,7 @@ from rclpy.executors import MultiThreadedExecutor
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 from PIL import Image as PILImage
 from PyQt5.QtGui import QTransform
+from rcl_interfaces.msg import Log
 
 
 qos_profile = QoSProfile(
@@ -44,6 +45,11 @@ class SystemNode(Node):
             self.tb2_callback, qos_profile)
         self.tb1_camera_subscription = self.create_subscription(Image,'/tb1/camera/image_raw',
             self.tb1_camera_callback, cam_qos_profile)
+    
+        self.fire_sub = self.create_subscription(String, '/tb1/fire', self.fire_callback, 10)
+        self.subscription = self.create_subscription(
+            Log, '/rosout', self.log_callback, 10
+        )
 
         # 데이터 저장 및 락 설정
         self.map_data = None
@@ -51,6 +57,8 @@ class SystemNode(Node):
         self.tb2_position = None
         self.lock = threading.Lock()
         self.tb1_image = None
+        self.fire = "화재 없음"
+        self.formatted_message = []
 
     def map_callback(self, msg):
         """맵 데이터를 저장"""
@@ -62,12 +70,19 @@ class SystemNode(Node):
         """맵 데이터를 반환 (스레드 안전)"""
         with self.lock:
             return [self.map_data, self.tb1_position, self.tb2_position, self.tb1_image]
+    
+    def fire_callback(self, msg):
+        """화재 상태를 업데이트"""
+        with self.lock:
+            if msg.data == "fire":
+                self.fire = "화재 발생"
+            else:
+                self.fire = "화재 없음"
 
     def tb1_callback(self, msg):
         """tb1의 위치를 저장"""
         with self.lock:
             self.tb1_position = msg.pose.pose.position
-        # self.get_logger().info(f"tb1 위치: x={self.tb1_position.x:.2f}, y={self.tb1_position.y:.2f}")
 
     def tb2_callback(self, msg):
         """tb2의 위치를 저장"""
@@ -86,6 +101,13 @@ class SystemNode(Node):
                 self.tb1_image = cv_image
             except Exception as e:
                 self.get_logger().error(f"카메라 데이터 변환 실패: {e}")
+    def log_callback(self, msg):
+        with self.lock:
+            self.formatted_message.append(f"[{msg.level}] {msg.name}: {msg.msg}")
+            if len(self.formatted_message) > 10:
+                self.formatted_message.pop(0)
+
+            
 
 
 
@@ -179,6 +201,11 @@ class ControlTowerGUI(QWidget):
         else:
             self.map_label.setText("맵 데이터 없음")
 
+        # 화재 상태 업데이트
+        if hasattr(self.node, "fire"):
+            self.fire_status_label.setText(self.node.fire)
+        else:
+            self.fire_status_label.setText("화재 상태: 정보 없음")
         # tb1_image가 NumPy 배열이라고 가정
         if tb1_image is not None:
             try:
@@ -198,6 +225,12 @@ class ControlTowerGUI(QWidget):
                 self.monitoring_label.setText("이미지 처리 오류")
         else:
             self.monitoring_label.setText("모니터링 화면: 이미지 없음")
+
+        # 로봇 상태 업데이트
+        message =''
+        for msg in self.node.formatted_message:
+            message += msg + "\n"
+        self.robot_monitoring_label.setText(message)
 
 
 

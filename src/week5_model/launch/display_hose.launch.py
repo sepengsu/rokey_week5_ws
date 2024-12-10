@@ -30,7 +30,7 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "use_sim_time",
                 default_value="false",
-                description="Use simulation time if true"
+                description="Use simulation time if true",
             ),
             # Robot State Publisher 노드
             Node(
@@ -47,5 +47,5 @@ def generate_launch_description():
                 output="screen",
                 arguments=["-d", rviz_config_file],  # RViz 설정 파일 경로
             ),
-        ],
+        ]
     )

@@ -9,6 +9,7 @@ from rclpy.action.client import GoalStatus
 from rclpy.executors import MultiThreadedExecutor
 import time
 from sensor_msgs.msg import JointState
+from std_msgs.msg import String
 
 class FireSuppressionRobot(Node):
     def __init__(self):
@@ -27,6 +28,13 @@ class FireSuppressionRobot(Node):
         # 로봇 제어를 위한 cmd_vel 퍼블리셔
         self.cmd_vel_pub = self.create_publisher(Twist, '/tb1/cmd_vel', 10)
 
+        # 로봇의 화재 감지 publicher
+        self.fire_pub = self.create_publisher(String, '/tb1/fire', 10)
+        self.fire_sub = self.create_subscription(String, '/tb1/fire', self.fire_callback, 10)
+        msg = String()
+        msg.data = "not fire"
+        self.fire_pub.publish(msg)
+
         # 순찰 및 복귀를 위한 위치 목록
         self.patrol_positions = [
             [-0.54429,1.921109,0.002471], # 순찰위치 1
@@ -41,6 +49,7 @@ class FireSuppressionRobot(Node):
         self.current_position_index = 0  # 순찰 위치의 인덱스 (초기값은 첫 번째 위치)
         self.fire_detected = False  # 화재 감지 여부를 추적하는 플래그
         self.is_returning = False  # 복귀 여부를 추적하는 플래그
+        self.count = 0
 
         # CvBridge 초기화
         self.bridge = CvBridge()
@@ -56,8 +65,14 @@ class FireSuppressionRobot(Node):
 
 
         # 순찰 시작
-        time.sleep(5)  # 로봇이 초기 위치로 이동할 시간을 줌
+        time.sleep(2)  # 로봇이 초기 위치로 이동할 시간을 줌
         self.patrol()
+
+    def fire_callback(self, msg):
+        if msg.data == "Finish":
+            self.fire = "Finish"
+            self.current_position_index = 0
+            self.move_to_position(self.initial_position)
 
     def camera_callback(self, msg):
         """카메라 이미지를 받아서 화재를 감지하는 콜백 함수."""
@@ -106,9 +121,11 @@ class FireSuppressionRobot(Node):
         action_goal = NavigateToPose.Goal()
         action_goal.pose = goal_msg
 
+
         # 액션 호출
         future = self.navigate_to_pose_client.send_goal_async(action_goal)
         future.add_done_callback(self.check_goal_status)
+        self.get_logger().info("목표 위치로 이동 중 ...")
         return future
 
     def stop_robot(self):
@@ -117,6 +134,18 @@ class FireSuppressionRobot(Node):
         twist = Twist()  # 속도 0으로 설정
         self.cmd_vel_pub.publish(twist)
         time.sleep(30)
+    
+    def stop_robot2(self):
+        """로봇의 이동을 멈추는 함수."""
+        self.get_logger().info("로봇 정지 중...")
+        twist = Twist()
+        self.cmd_vel_pub.publish(twist)
+
+        msg = String()
+        msg.data = "fire"
+        self.fire_pub.publish(msg)
+        while self.fire == "fire":
+            time.sleep(1)
 
 
     def suppress_fire(self):
@@ -127,8 +156,9 @@ class FireSuppressionRobot(Node):
         msg.pose.position.x = self.fire_position[0]
         msg.pose.position.y = self.fire_position[1]
         msg.pose.orientation.w = 1.0  # 기본 회전값
-        self.move_pub.publish(msg) 
-        self.stop_robot()
+        self.move_pub.publish(msg)
+        self.fire ="fire" 
+        self.stop_robot2()
 
     def return_to_base(self):
         """화재 진압 후 초기 위치로 복귀하는 함수."""
@@ -152,16 +182,19 @@ class FireSuppressionRobot(Node):
         action_status = future.result().status
         if action_status == GoalStatus.STATUS_SUCCEEDED:
             self.get_logger().info("[INFO] Reached goal.")
+            self.count+=1
             self.current_position_index += 1
             if self.current_position_index >= len(self.patrol_positions):
                 self.current_position_index = 0
         else:
             self.get_logger().error("[ERROR] Failed to reach goal.")
-        if self.current_position_index==0:
+
+        if self.count == 5:
             self.get_logger().info("화재 감지!!!!")
             self.suppress_fire()
         else:
-            self.patrol()
+            self.get_logger().info("순찰 중 ...")
+            self.move_to_position(self.patrol_positions[self.current_position_index])
 
     def patrol(self):
         """사각형 경로로 순찰을 수행하는 함수."""
@@ -175,13 +208,14 @@ class Robot2(Node):
     def __init__(self):
         super().__init__('hose_robot')
         self.bridge = CvBridge()
-        self.init_pos = [-7.72, -1.21, 0.001]
+        self.init_pos = [-0.5, -0.5, 0.001]
         # 로봇 제어를 위한 cmd_vel 퍼블리셔
         self.cmd_vel_pub = self.create_publisher(Twist, '/tb2/cmd_vel', 10)
 
         # 이동 명령을 받기 위한 퍼블리셔
         self.move_sub = self.create_subscription(PoseStamped, '/tb2/move', 
             self.go_to_fire, 10)
+        self.fire = self.create_publisher(String, '/tb1/fire', 10)
         # 조인트 제어를 위한 퍼블리셔
         self.joint_pub = self.create_publisher(PoseStamped, '/tb2/joint_states', 10)
         # 이동 관련 action client
@@ -274,6 +308,9 @@ class Robot2(Node):
         self.watering()
         self.pump_down()
         self.go_to_init()
+        msg = String()
+        msg.data = "Finish"
+        self.fire.publish(msg)
 
 
 def main():
